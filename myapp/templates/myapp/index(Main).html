@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Calorie Tracker</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
+          crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.3/dist/Chart.min.js"></script>
+</head>
+<body>
+<div class="container">
+    <!-- NavigationBar -->
+    <nav class="navbar navbar-dark bg-info mb-4">
+        <span class="navbar-brand">Calorie Tracker</span>
+        <a href="{% url 'index' %}" class="navbar-brand">Home</a>
+    </nav>
+
+    <!-- Food ChoicBox Form -->
+    <form method="POST">
+        {% csrf_token %}
+        <div class="form-group row justify-content-center">
+            <label class="col-md-2 col-form-label font-weight-bold">Select Food To Add:</label>
+            <div class="col-md-6">
+                <select name="food_consumed" class="form-control" required>
+                    <option value="" disabled selected>Select a food item</option>
+                    {% for food in foods %}
+                        <option value="{{ food.name }}">{{ food.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-success" type="submit">Add</button>
+            </div>
+        </div>
+    </form>
+
+    <!-- Calorie Progress -->
+    <div class="my-4 text-center">
+        <h4>Daily Calorie Goal: <span id="goalValue">2000</span> kcal</h4>
+        <div class="progress mx-auto" style="width: 80%; height: 30px;">
+            <div id="calorieProgressBar" class="progress-bar" role="progressbar"
+                 style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                <span id="progressText" class="font-weight-bold"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table and PieChart -->
+    <div class="row">
+        <!-- Table -->
+        <div class="col-md-7">
+            <h4 class="text-center">Today's Consumption</h4>
+            <table class="table table-striped table-bordered" id="table">
+                <thead class="bg-info text-white text-center">
+                <tr>
+                    <th>Food Item</th>
+                    <th>Carbs (g)</th>
+                    <th>Protein (g)</th>
+                    <th>Fats (g)</th>
+                    <th>Calories (Kcal)</th>
+                    <th>Remove</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for c in consumed_food %}
+                    <tr class="text-center">
+                        <td>{{ c.food_consumed.name }}</td>
+                        <td>{{ c.food_consumed.carbs }}</td>
+                        <td>{{ c.food_consumed.protein }}</td>
+                        <td>{{ c.food_consumed.fats }}</td>
+                        <td>{{ c.food_consumed.calories }}</td>
+                        <td>
+                            <a class="btn btn-danger btn-sm" href="{% url 'delete' c.pk %}">X</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+                <tfoot class="bg-info text-white text-center">
+                <tr>
+                    <td><strong>Total</strong></td>
+                    <td id="totalCarbs"><strong>0</strong></td>
+                    <td id="totalProtien"><strong>0</strong></td>
+                    <td id="totalFats"><strong>0</strong></td>
+                    <td id="totalCalories"><strong>0</strong></td>
+                    <td></td>
+                </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- PieChart -->
+        <div class="col-md-5">
+            <h4 class="text-center">Today's Diet</h4>
+            <div class="card">
+                <div class="card-header bg-info text-white text-center">Nutrients Insight</div>
+                <div class="card-body">
+                    <canvas id="myChart" width="400" height="400"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Nutritional Insights -->
+    <div class="row justify-content-center mt-4">
+        <div class="col-md-10">
+            <div id="insightBox" class="p-3 bg-light border rounded shadow-sm text-center">
+                <!-- JS will inject insights here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JS for Calculation + Chart + Insights -->
+<script>
+    const table = document.getElementById("table");
+    let carbs = 0, protein = 0, fats = 0, calories = 0;
+
+    const rows = document.querySelectorAll("tbody tr");
+    rows.forEach(row => {
+        carbs += parseFloat(row.cells[1].innerText) || 0;
+        protein += parseFloat(row.cells[2].innerText) || 0;
+        fats += parseFloat(row.cells[3].innerText) || 0;
+        calories += parseFloat(row.cells[4].innerText) || 0;
+    });
+
+    carbs = Math.round(carbs);
+    protein = Math.round(protein);
+    fats = Math.round(fats);
+    calories = Math.round(calories);
+
+    document.getElementById("totalCarbs").innerText = carbs + " (g)";
+    document.getElementById("totalProtien").innerText = protein + " (g)";
+    document.getElementById("totalFats").innerText = fats + " (g)";
+    document.getElementById("totalCalories").innerText = calories + " (Kcal)";
+
+    const calorieGoal = 2000;
+    const calPer = (calories / calorieGoal) * 100;
+    const progressBar = document.getElementById("calorieProgressBar");
+    const progressText = document.getElementById("progressText");
+
+    progressBar.style.width = `${Math.min(calPer, 100)}%`;
+    progressBar.setAttribute("aria-valuenow", Math.round(calPer));
+    progressText.textContent = `${calories} / ${calorieGoal} kcal`;
+
+    if (calPer < 50) {
+        progressBar.classList.add("bg-success");
+    } else if (calPer < 90) {
+        progressBar.classList.add("bg-warning");
+    } else {
+        progressBar.classList.add("bg-danger");
+        if (calPer > 100) {
+            progressText.textContent += " ⚠️ Over Limit";
+        }
+    }
+
+    const total = carbs + protein + fats;
+    const carbsP = total ? Math.round((carbs / total) * 100) : 0;
+    const proteinP = total ? Math.round((protein / total) * 100) : 0;
+    const fatsP = total ? Math.round((fats / total) * 100) : 0;
+
+    const ctx = document.getElementById('myChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: [`Carbs ${carbsP}%`, `Protein ${proteinP}%`, `Fats ${fatsP}%`],
+            datasets: [{
+                data: [carbsP, proteinP, fatsP],
+                backgroundColor: [
+                    'rgba(72, 219, 251, 0.8)',   // Light Blue
+                    'rgba(255, 159, 243, 0.8)',  // Pink
+                    'rgba(85, 239, 196, 0.8)',   // Mint Green
+                ],
+                borderColor: [
+                    'rgba(72, 219, 251, 1)',
+                    'rgba(255, 159, 243, 1)',
+                    'rgba(85, 239, 196, 1)',
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    });
+
+    const insightBox = document.getElementById("insightBox");
+
+    function getNutritionalInsight(calories, carbs, protein, fats) {
+        if (calories === 0) {
+            return `<p class="text-muted text-center">No food items added yet.</p>`;
+        }
+
+        let insights = [];
+        let badge = "";
+
+        if (calories > 2500) {
+            badge = `<span class="badge badge-danger mb-2">⚠️ Very High Calorie Intake</span>`;
+            insights.push("You're exceeding a healthy daily calorie limit. Consider smaller portions or lighter meals.");
+        } else if (calories > 2200) {
+            badge = `<span class="badge badge-warning mb-2">⚠️ High Calorie Intake</span>`;
+            insights.push("You’re nearing the upper limit. Focus on nutrient-dense, low-calorie foods.");
+        } else if (calories < 1200) {
+            badge = `<span class="badge badge-info mb-2">⚠️ Low Calorie Intake</span>`;
+            insights.push("Your calorie intake is very low. Ensure you're getting enough energy to function well.");
+        } else {
+            badge = `<span class="badge badge-success mb-2">✅ Healthy Calorie Range</span>`;
+            insights.push("Your calorie intake is within a healthy range.");
+        }
+
+        if (protein < 30) {
+            insights.push("Protein intake is low. Add more lean meats, legumes, tofu, or dairy.");
+        } else if (protein > 120) {
+            insights.push("High protein intake. Make sure it's balanced with enough fiber and hydration.");
+        } else {
+            insights.push("Good protein level! Keep supporting muscle and metabolism.");
+        }
+
+        if (carbs > (protein + fats) * 2) {
+            insights.push("High carbs relative to other macros. Reduce refined sugars, opt for complex carbs.");
+        } else if (carbs < 75) {
+            insights.push("Carbs are very low. Consider whole grains or fruits for sustainable energy.");
+        } else {
+            insights.push("Balanced carb intake. Keep prioritizing whole grains and fiber.");
+        }
+
+        if (fats > 80) {
+            insights.push("Fat intake is high. Prefer unsaturated fats (nuts, olive oil) over saturated ones.");
+        } else if (fats < 25) {
+            insights.push("Fat intake is low. Healthy fats are essential for hormone regulation.");
+        } else {
+            insights.push("Healthy fat intake range. Nice job keeping it balanced!");
+        }
+
+        return `
+            <div class="text-center">
+                ${badge}
+                <ul class="list-group list-group-flush mt-2">
+                    ${insights.map(i => `<li class="list-group-item bg-light text-dark">${i}</li>`).join('')}
+                </ul>
+            </div>
+        `;
+    }
+
+    insightBox.innerHTML = getNutritionalInsight(calories, carbs, protein, fats);
+</script>
+</body>
+</html>
